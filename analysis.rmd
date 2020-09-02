@@ -1,0 +1,226 @@
+---
+title: "From Recommendations For Better Nutrition and More Exercise to Recommendations Regarding the Side Effects of Vital Medicines. Benefits and Data Protection in Different Application Contexts of Health Recommendation Systems"
+author: "Laura"
+date: "24 4 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(sjlabelled)
+library(sjPlot)
+library(forcats)
+library(corrplot)
+library(hcictools)
+library(ggplot2)
+library(likert)
+library(apastats)
+library(apaTables)
+library(psych)
+library(ggthemes)
+library(scales)
+library(jmv)
+library(papaja)
+library(cowplot)
+
+
+source("survemonky_helper.R")
+source("helpers.R")
+```
+
+# Data Cleaning
+First we clean our SPSS output files. For this purpose we remove identifying information..
+
+```{r data-cleaning, include=FALSE}
+raw <- haven::read_sav("Data/DatenRecSys2019.sav", encoding = "UTF-8")
+
+
+raw %>% select(AllgemeineDaten1, AllgemeineDaten2, AllgemeineDaten3, GesundheitsbezogeneDaten1, GesundheitsbezogeneDaten2, GesundheitsbezogeneDaten3) -> df
+
+
+
+df_test <- raw %>% select(respondent_id, AllgemeineDaten1, AllgemeineDaten2, AllgemeineDaten3, GesundheitsbezogeneDaten1, GesundheitsbezogeneDaten2, GesundheitsbezogeneDaten3)
+
+wsci_df <- df_test %>% gather(variable, value, -respondent_id) %>% wsci(id = "respondent_id", factors = c("variable"), dv="value")
+
+```
+
+
+```{r data-cleaning2, include=FALSE}
+(
+p <- 
+    df %>% 
+    psych::describe() %>% 
+    as.data.frame() %>%  
+    rownames_to_column() %>% 
+    select(variable = rowname, mean, se) %>% 
+    left_join(wsci_df) %>% 
+    mutate(ci = value) %>% 
+    mutate(data_type = ifelse(str_detect(variable, "Allgemeine"), "personal data", "health data")) %>% 
+    mutate(data_type = as.ordered(data_type)) %>% 
+    mutate(context = case_when(str_detect(variable, "1") ~ "healthy life",
+                             str_detect(variable, "2") ~ "complaints",
+                             TRUE ~ "drugs")) %>%
+  mutate(context = factor(context, levels = c("healthy life", "complaints", "drugs"))) %>% 
+    
+  ggplot() +
+  aes(x=data_type, y = mean, ymin = mean - ci, ymax = mean + ci, color = data_type) +
+  geom_errorbar(width = 0.5) +
+  geom_point(size = 2.5) +
+  scale_y_continuous(limits = c(1,5), breaks = 1:5, name = "Willingness to disclose data") +
+  scale_x_discrete(name = "Data type") +
+    geom_hline(yintercept = 3, linetype = "dotted") +
+  coord_flip() +
+    scale_color_brewer(palette = "Set1") +
+  theme_bw() +
+  labs(subtitle = "",
+       caption = "Errorbars denote 95% ws-confidence intervals. Dotted line is threshold of neutrality.") +
+    guides(color=FALSE) +
+    facet_wrap(~context, nrow = 3)
+)
+```
+
+
+```{r data-cleaning, include=FALSE}
+titel <- "Means of the willingness to disclose data for the three contexts"
+
+g <- ggdraw(p) + draw_text(titel, 
+                      x = 0.01, y = 0.98, hjust = 0, vjust = 1,
+                      size = 12)  
+
+g
+ggsave("plot.pdf", g, width = 5, height = 3.5)  
+
+
+```
+
+```{r}
+df_descr_h <- raw %>% select(respondent_id, starts_with("q0013"))#, starts_with("q0014"))
+df_descr_c <- raw %>% select(respondent_id, starts_with("q0015"))#, starts_with("q0016"))
+df_descr_d <- raw %>% select(respondent_id, starts_with("q0017"))#, starts_with("q0018"))
+
+
+#df_descr_p %>% map(get_label)
+
+label_vec <- c("id", "day of birth", "gender", "height", "weight", "pre-existing conditions", "chronic diseases", 
+                    "hereditary diseases", "allergies", "medicine intake", 
+                    "eating habits", 
+                    #"alcohol intake", "cigarette consumption",
+                    "sleeping data", "activity data")
+
+names(df_descr_h) <- label_vec
+names(df_descr_d) <- label_vec
+names(df_descr_c) <- label_vec
+
+df_descr_h$type = c("healthy life")
+df_descr_d$type = c("drugs")
+df_descr_c$type = c("complaints")
+
+df <- bind_rows(df_descr_h, df_descr_d, df_descr_c)
+
+
+(p <- df %>% 
+  gather(attribute, value, -type, -id) %>% 
+  mutate(data_type = case_when(str_detect(attribute,"gender") ~ "personal data",
+                               str_detect(attribute,"day of birth") ~ "personal data",
+                               str_detect(attribute,"height") ~ "personal data",
+                               str_detect(attribute,"weight") ~ "personal data",
+                               TRUE ~ "health data")
+        ) %>% 
+  #count(data_type, attribute) %>% 
+  mutate(attribute = factor(attribute, levels = rev(label_vec))) %>% 
+  ggplot() + 
+  stat_summary(aes(x = attribute, y = value, color = type, group=type), geom="line", position = position_dodge(width = 0.1)) +
+  stat_summary(aes(x = attribute, y = value, color = type, group=type, shape = data_type), position = position_dodge(width = 0.1), size = 0.75) +
+  stat_summary(aes(x = attribute, y = value, color = type, group=type, shape = data_type), geom="point", position = position_dodge(width = 0.1), size = 1.3, color = "white") +
+    geom_hline(yintercept = 3, linetype = "dotted") +
+  coord_flip() +
+  scale_y_continuous(limits = c(1,5)) +
+  #facet_wrap(type~data_type, scales = "free_y", nrow = 3) +
+  scale_color_brewer(palette = "Set1") +
+ labs( y = "Willingness to disclose data", x = "Type of data", caption = "Errorbars denote standard errors. Dotted line is threshold of neutrality.", 
+       color = "Context", shape = "Data category", title = " ")+
+  theme_bw() + theme(legend.position = "bottom",legend.box = "vertical") +
+    guides(color = F) +
+   annotate("text", x = 6, y = 1.8, label = "Healthy life", color = brewer_pal(palette = "Set1")(3)) +
+   annotate("text", x = 7, y = 4.3, label = "Drugs", color = brewer_pal(palette = "Set1")(2)) +
+    annotate("text", x = 10, y = 3.0, label = "Complaints", color = brewer_pal(palette = "Set1")(1))
+
+)
+
+
+ titel <- "Means of the willingness to disclose data for all data types"
+
+g <- ggdraw(p) + draw_text(titel, 
+                      x = 0.01, y = 0.98, hjust = 0, vjust = 1,
+                      size = 12)  
+
+g
+ggsave("plot2.pdf", g, width = 5, height = 3.75)  
+  
+
+```
+
+
+```{r}
+df_descr_h <- raw %>% select(respondent_id, starts_with("q0013"))#, starts_with("q0014"))
+df_descr_c <- raw %>% select(respondent_id, starts_with("q0015"))#, starts_with("q0016"))
+df_descr_d <- raw %>% select(respondent_id, starts_with("q0017"))#, starts_with("q0018"))
+
+
+#df_descr_p %>% map(get_label)
+
+label_vec <- c("id", "day of birth", "gender", "height", "weight", "pre-existing conditions", "chronic diseases", 
+                    "hereditary diseases", "allergies", "medicine intake", 
+                    "eating habits", 
+                    #"alcohol intake", "cigarette consumption",
+                    "sleeping data", "activity data")
+
+names(df_descr_h) <- label_vec
+names(df_descr_d) <- label_vec
+names(df_descr_c) <- label_vec
+
+df_descr_h$type = c("healthy life")
+df_descr_d$type = c("drugs")
+df_descr_c$type = c("complaints")
+
+df <- bind_rows(df_descr_h, df_descr_d, df_descr_c)
+
+
+(p <- df %>% 
+  gather(attribute, value, -type, -id) %>% 
+  mutate(data_type = case_when(str_detect(attribute,"gender") ~ "personal data",
+                               str_detect(attribute,"day of birth") ~ "personal data",
+                               str_detect(attribute,"height") ~ "personal data",
+                               str_detect(attribute,"weight") ~ "personal data",
+                               TRUE ~ "health data")
+        ) %>% 
+  #count(data_type, attribute) %>% 
+  mutate(attribute = factor(attribute, levels = rev(label_vec))) %>% 
+  ggplot() + 
+  stat_summary(aes(x = data_type, y = value, color = type, group=type), fun.data = mean_cl_boot, geom="line", position = position_dodge(width = 0.1)) +
+  stat_summary(aes(x = data_type, y = value, color = type, group=type, shape = data_type),  fun.data = mean_cl_boot, position = position_dodge(width = 0.1), size = 0.75) +
+  stat_summary(aes(x = data_type, y = value, color = type, group=type, shape = data_type),  fun.data = mean_cl_boot, geom="point", position = position_dodge(width = 0.1), size = 1.3, color = "white") +
+    geom_hline(yintercept = 3, linetype = "dotted") +
+  coord_flip() +
+  scale_y_continuous(limits = c(1,5)) +
+  #facet_wrap(type~data_type, scales = "free_y", nrow = 3) +
+  scale_color_brewer(palette = "Set1") +
+ labs( y = "Willingness to disclose data", x = "Type of data", caption = "Errorbars denote 95% ws-confidence intervals. Dotted line is threshold of neutrality.", 
+       color = "Context", shape = "Data category", title = " ")+
+  theme_bw() + theme(legend.position = "bottom",legend.box = "vertical") 
+
+)
+
+
+ titel <- "Means of the willingness to disclose data for all data types"
+
+g <- ggdraw(p) + draw_text(titel, 
+                      x = 0.01, y = 0.98, hjust = 0, vjust = 1,
+                      size = 12)  
+
+g
+ggsave("plot3.pdf", g, width = 5, height = 3.75)  
+```
+
