@@ -24,25 +24,20 @@ library(jmv)
 library(papaja)
 library(cowplot)
 
-
 library(osfr)
-osfr::osf_auth()
 
-if(!dir.exists("data")){
-  dir.create("data")
-}
-osf_retrieve_file("86qvh") %>% osf_download(path = "data", conflicts = "overwrite")
+filelist <- osf_retrieve_file("4hs8y") %>% osf_download(path = "data", conflicts = "overwrite")
+fn <- filelist[1,]$local_path
 
-fn <- here::here("data", "DatenRecSys2019.sav")
 
 source("survemonky_helper.R")
 source("helpers.R")
 ```
 
-# Data Cleaning
-First we clean our SPSS output files. For this purpose we remove identifying information..
+# Data Selection
+First we select the information from the data that we need
 
-```{r data-cleaning, include=FALSE}
+```{r data-selection, include=FALSE}
 raw <- haven::read_sav(fn, encoding = "UTF-8")
 
 
@@ -57,7 +52,7 @@ wsci_df <- df_test %>% gather(variable, value, -respondent_id) %>% wsci(id = "re
 ```
 
 
-```{r data-cleaning2, include=FALSE}
+```{r first_plot, include=FALSE}
 (
 p <- 
     df %>% 
@@ -215,7 +210,7 @@ df <- bind_rows(df_descr_h, df_descr_d, df_descr_c)
     geom_hline(yintercept = 3, linetype = "dotted") +
   coord_flip() +
   scale_y_continuous(limits = c(1,5)) +
-  #facet_wrap(type~data_type, scales = "free_y", nrow = 3) +
+  facet_wrap(data_type, scales = "free_y", nrow = 3) +
   scale_color_brewer(palette = "Set1") +
  labs( y = "Willingness to disclose data", x = "Type of data", caption = "Errorbars denote 95% ws-confidence intervals. Dotted line is threshold of neutrality.", 
        color = "Context", shape = "Data category", title = " ")+
