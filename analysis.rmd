@@ -1,7 +1,7 @@
 ---
-title: "From Recommendations For Better Nutrition and More Exercise to Recommendations Regarding the Side Effects of Vital Medicines. Benefits and Data Protection in Different Application Contexts of Health Recommendation Systems"
-author: "Laura"
-date: "24 4 2019"
+title: "On the Importance of Context: Privacy Perceptions of Personal vs. Health Data in Health Recommender Systems"
+author: "Laura Burbach, Poornima Belavadi, Patrick Halbach, Nils Plettenberg, Johannes Nakayama, Lilian Kojan, André Calero Valdez"
+date: "02 Sep 2020"
 output: html_document
 ---
 
@@ -12,7 +12,7 @@ library(sjlabelled)
 library(sjPlot)
 library(forcats)
 library(corrplot)
-library(hcictools)
+#library(hcictools)
 library(ggplot2)
 library(likert)
 library(apastats)
@@ -25,6 +25,16 @@ library(papaja)
 library(cowplot)
 
 
+library(osfr)
+osfr::osf_auth()
+
+if(!dir.exists("data")){
+  dir.create("data")
+}
+osf_retrieve_file("86qvh") %>% osf_download(path = "data", conflicts = "overwrite")
+
+fn <- here::here("data", "DatenRecSys2019.sav")
+
 source("survemonky_helper.R")
 source("helpers.R")
 ```
@@ -33,7 +43,7 @@ source("helpers.R")
 First we clean our SPSS output files. For this purpose we remove identifying information..
 
 ```{r data-cleaning, include=FALSE}
-raw <- haven::read_sav("Data/DatenRecSys2019.sav", encoding = "UTF-8")
+raw <- haven::read_sav(fn, encoding = "UTF-8")
 
 
 raw %>% select(AllgemeineDaten1, AllgemeineDaten2, AllgemeineDaten3, GesundheitsbezogeneDaten1, GesundheitsbezogeneDaten2, GesundheitsbezogeneDaten3) -> df
@@ -82,7 +92,7 @@ p <-
 ```
 
 
-```{r data-cleaning, include=FALSE}
+```{r data-cleaning3, include=FALSE}
 titel <- "Means of the willingness to disclose data for the three contexts"
 
 g <- ggdraw(p) + draw_text(titel, 
