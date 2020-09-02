@@ -6,25 +6,29 @@ output: html_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = FALSE)
 library(tidyverse)
-library(sjlabelled)
-library(sjPlot)
-library(forcats)
-library(corrplot)
-#library(hcictools)
-library(ggplot2)
-library(likert)
-library(apastats)
-library(apaTables)
+#library(sjlabelled)
+#library(sjPlot)
+#library(forcats)
+#library(corrplot)
+##library(hcictools)
+#library(ggplot2)
+#library(likert)
+#library(apastats)
+#library(apaTables)
 library(psych)
 library(ggthemes)
 library(scales)
 library(jmv)
 library(papaja)
 library(cowplot)
-
 library(osfr)
+
+knitr::write_bib(file = "rpkgs.bib")
+
+
+
 
 filelist <- osf_retrieve_file("4hs8y") %>% osf_download(path = "data", conflicts = "overwrite")
 fn <- filelist[1,]$local_path
@@ -37,18 +41,47 @@ source("helpers.R")
 # Data Selection
 First we select the information from the data that we need
 
-```{r data-selection, include=FALSE}
+```{r data-loading, include=FALSE}
 raw <- haven::read_sav(fn, encoding = "UTF-8")
-
-
-raw %>% select(AllgemeineDaten1, AllgemeineDaten2, AllgemeineDaten3, GesundheitsbezogeneDaten1, GesundheitsbezogeneDaten2, GesundheitsbezogeneDaten3) -> df
+```
 
 
 
-df_test <- raw %>% select(respondent_id, AllgemeineDaten1, AllgemeineDaten2, AllgemeineDaten3, GesundheitsbezogeneDaten1, GesundheitsbezogeneDaten2, GesundheitsbezogeneDaten3)
+# PCA using Eigenloadings
+```{r PCA}
+
+names(raw)
+
+raw %>% select(starts_with("q0013"),starts_with("q0015"),starts_with("q0017")) %>% 
+  jmv::pca(
+    nFactorMethod = "eigen",
+    sortLoadings = TRUE,
+    factorSummary = TRUE,
+    kmo = TRUE,
+    bartlett = TRUE)
+
+```
+
+
+
+
+
+```{r data-selection, include=FALSE}
+df <- raw %>% 
+  select(AllgemeineDaten1, AllgemeineDaten2, AllgemeineDaten3, 
+         GesundheitsbezogeneDaten1, GesundheitsbezogeneDaten2, GesundheitsbezogeneDaten3)
+```
+
+
+## Within Subject CI
+
+```{r ws_description, include=FALSE}
+df_test <- raw %>% 
+  select(respondent_id, AllgemeineDaten1, AllgemeineDaten2, AllgemeineDaten3, 
+         GesundheitsbezogeneDaten1, GesundheitsbezogeneDaten2, GesundheitsbezogeneDaten3) %>% na.omit()
 
 wsci_df <- df_test %>% gather(variable, value, -respondent_id) %>% wsci(id = "respondent_id", factors = c("variable"), dv="value")
-
+summary(wsci_df)
 ```
 
 
@@ -62,7 +95,7 @@ p <-
     select(variable = rowname, mean, se) %>% 
     left_join(wsci_df) %>% 
     mutate(ci = value) %>% 
-    mutate(data_type = ifelse(str_detect(variable, "Allgemeine"), "personal data", "health data")) %>% 
+    mutate(data_type = ifelse(str_detect(variable, "Allgemeine"), "general data", "health data")) %>% 
     mutate(data_type = as.ordered(data_type)) %>% 
     mutate(context = case_when(str_detect(variable, "1") ~ "healthy life",
                              str_detect(variable, "2") ~ "complaints",
@@ -84,10 +117,11 @@ p <-
     guides(color=FALSE) +
     facet_wrap(~context, nrow = 3)
 )
+
 ```
 
 
-```{r data-cleaning3, include=FALSE}
+```{r data-cleaning3, include=TRUE}
 titel <- "Means of the willingness to disclose data for the three contexts"
 
 g <- ggdraw(p) + draw_text(titel, 
@@ -100,7 +134,12 @@ ggsave(here::here("output","plot.pdf"), g, width = 5, height = 3.5)
 
 ```
 
-```{r}
+
+
+## Step 2
+
+
+```{r, include = FALSE}
 df_descr_h <- raw %>% select(respondent_id, starts_with("q0013"))#, starts_with("q0014"))
 df_descr_c <- raw %>% select(respondent_id, starts_with("q0015"))#, starts_with("q0016"))
 df_descr_d <- raw %>% select(respondent_id, starts_with("q0017"))#, starts_with("q0018"))
@@ -127,10 +166,10 @@ df <- bind_rows(df_descr_h, df_descr_d, df_descr_c)
 
 (p <- df %>% 
   gather(attribute, value, -type, -id) %>% 
-  mutate(data_type = case_when(str_detect(attribute,"gender") ~ "personal data",
-                               str_detect(attribute,"day of birth") ~ "personal data",
-                               str_detect(attribute,"height") ~ "personal data",
-                               str_detect(attribute,"weight") ~ "personal data",
+  mutate(data_type = case_when(str_detect(attribute,"gender") ~ "general data",
+                               str_detect(attribute,"day of birth") ~ "general data",
+                               str_detect(attribute,"height") ~ "general data",
+                               str_detect(attribute,"weight") ~ "general data",
                                TRUE ~ "health data")
         ) %>% 
   #count(data_type, attribute) %>% 
@@ -153,9 +192,11 @@ df <- bind_rows(df_descr_h, df_descr_d, df_descr_c)
     annotate("text", x = 10, y = 3.0, label = "Complaints", color = brewer_pal(palette = "Set1")(1))
 
 )
+```
 
 
- titel <- "Means of the willingness to disclose data for all data types"
+```{r}
+titel <- "Means of the willingness to disclose data for all data types"
 
 g <- ggdraw(p) + draw_text(titel, 
                       x = 0.01, y = 0.98, hjust = 0, vjust = 1,
@@ -168,7 +209,9 @@ ggsave(here::here("output","plot2.pdf"), g, width = 5, height = 3.75)
 ```
 
 
-```{r}
+### Next
+
+```{r, include = FALSE}
 df_descr_h <- raw %>% select(respondent_id, starts_with("q0013"))#, starts_with("q0014"))
 df_descr_c <- raw %>% select(respondent_id, starts_with("q0015"))#, starts_with("q0016"))
 df_descr_d <- raw %>% select(respondent_id, starts_with("q0017"))#, starts_with("q0018"))
@@ -195,10 +238,10 @@ df <- bind_rows(df_descr_h, df_descr_d, df_descr_c)
 
 (p <- df %>% 
   gather(attribute, value, -type, -id) %>% 
-  mutate(data_type = case_when(str_detect(attribute,"gender") ~ "personal data",
-                               str_detect(attribute,"day of birth") ~ "personal data",
-                               str_detect(attribute,"height") ~ "personal data",
-                               str_detect(attribute,"weight") ~ "personal data",
+  mutate(data_type = case_when(str_detect(attribute,"gender") ~ "general data",
+                               str_detect(attribute,"day of birth") ~ "general data",
+                               str_detect(attribute,"height") ~ "general data",
+                               str_detect(attribute,"weight") ~ "general data",
                                TRUE ~ "health data")
         ) %>% 
   #count(data_type, attribute) %>% 
@@ -210,16 +253,18 @@ df <- bind_rows(df_descr_h, df_descr_d, df_descr_c)
     geom_hline(yintercept = 3, linetype = "dotted") +
   coord_flip() +
   scale_y_continuous(limits = c(1,5)) +
-  facet_wrap(data_type, scales = "free_y", nrow = 3) +
+  #facet_wrap(data_type, scales = "free_y", nrow = 3) +
   scale_color_brewer(palette = "Set1") +
  labs( y = "Willingness to disclose data", x = "Type of data", caption = "Errorbars denote 95% ws-confidence intervals. Dotted line is threshold of neutrality.", 
        color = "Context", shape = "Data category", title = " ")+
   theme_bw() + theme(legend.position = "bottom",legend.box = "vertical") 
 
 )
+```
 
 
- titel <- "Means of the willingness to disclose data for all data types"
+```{r, include = TRUE}
+titel <- "Means of the willingness to disclose data for all data types"
 
 g <- ggdraw(p) + draw_text(titel, 
                       x = 0.01, y = 0.98, hjust = 0, vjust = 1,
