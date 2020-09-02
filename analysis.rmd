@@ -100,7 +100,7 @@ g <- ggdraw(p) + draw_text(titel,
                       size = 12)  
 
 g
-ggsave("plot.pdf", g, width = 5, height = 3.5)  
+ggsave(here::here("output","plot.pdf"), g, width = 5, height = 3.5)  
 
 
 ```
@@ -167,7 +167,7 @@ g <- ggdraw(p) + draw_text(titel,
                       size = 12)  
 
 g
-ggsave("plot2.pdf", g, width = 5, height = 3.75)  
+ggsave(here::here("output","plot2.pdf"), g, width = 5, height = 3.75)  
   
 
 ```
@@ -231,6 +231,6 @@ g <- ggdraw(p) + draw_text(titel,
                       size = 12)  
 
 g
-ggsave("plot3.pdf", g, width = 5, height = 3.75)  
+ggsave(here::here("output","plot3.pdf"), g, width = 5, height = 3.75)  
 ```
 
